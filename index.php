@@ -36,7 +36,7 @@ function archive()
 
     $results['category'] = Category::getById($categoryId);
 
-    $data = Article::getList(100000, $results['category'] ? $results['category']->id : null);
+    $data = Article::getActive(CmsConfig::$homepage_num_articles); //Article::getList(100000, $results['category'] ? $results['category']->id : null);
 
     $results['articles'] = $data['results'];
     $results['totalRows'] = $data['totalRows'];
@@ -86,7 +86,7 @@ function viewArticle()
 function homepage()
 {
     $results = array(); // $const->homepage_num_articles
-    $data = Article::getList(CmsConfig::$homepage_num_articles);
+    $data = Article::getActive(CmsConfig::$homepage_num_articles); //Article::getList(CmsConfig::$homepage_num_articles);
     $results['articles'] = $data['results'];
     $results['totalRows'] = $data['totalRows'];
 

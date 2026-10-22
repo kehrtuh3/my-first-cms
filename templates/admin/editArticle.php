@@ -49,7 +49,12 @@
                 <input type="date" name="publicationDate" id="publicationDate" placeholder="YYYY-MM-DD" required maxlength="10" value="<?php echo ($article && $article->publicationDate) ? date( "Y-m-d", $article->publicationDate ) : "" ?>" />
               </li>
 
-
+              <li>
+                <label for="active">Показывать на сайте</label>
+                <input type="hidden" name="active" value="0">
+                <input type="checkbox" name="active" id="active" value="1"
+                <?php echo $results['article']->active ? 'checked' : '' ?>>
+              </li>
             </ul>
 
             <div class="buttons">
