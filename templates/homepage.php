@@ -26,6 +26,14 @@
                         <?php echo "Без категории"?>
                     </span>
                 <?php } ?>
+                <?php if ($article->subcategoryId && isset($results['subcategories'][$article->subcategoryId])) { ?>
+                    <span class="category">
+                        /
+                        <a href=".?action=archive&amp;subcategoryId=<?php echo $article->subcategoryId?>">
+                            <?php echo htmlspecialchars($results['subcategories'][$article->subcategoryId]->name)?>
+                        </a>
+                    </span>
+                <?php } ?>
             </h2>
             <p class="summary">
 

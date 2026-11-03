@@ -42,7 +42,21 @@
                 <?php } ?>
                 </select>
               </li>
-
+              <li>
+                <label for="subcategoryId">Article Subcategory</label>
+                <select name="subcategoryId" id="subcategoryId">
+                  <option value="0"<?php echo !($article && $article->subcategoryId) ? " selected" : ""?>>Не выбрано</option>
+                <?php foreach ( $results['categories'] as $category ) { ?>
+                  <?php if ( !empty( $results['subcategoriesByCategory'][$category->id] ) ) { ?>
+                  <optgroup label="<?php echo htmlspecialchars( $category->name )?>">
+                    <?php foreach ( $results['subcategoriesByCategory'][$category->id] as $subcategory ) { ?>
+                    <option value="<?php echo $subcategory->id?>"<?php echo (($article && $subcategory->id == $article->subcategoryId ) ? " selected" : "")?>><?php echo htmlspecialchars( $subcategory->name )?></option>
+                    <?php } ?>
+                  </optgroup>
+                  <?php } ?>
+                <?php } ?>
+                </select>
+              </li>
               <li>
                 <label for="publicationDate">Publication Date</label>
                 <input type="date" name="publicationDate" id="publicationDate" placeholder="YYYY-MM-DD" required maxlength="10" value="<?php echo ($article && $article->publicationDate) ? date( "Y-m-d", $article->publicationDate ) : "" ?>" />
@@ -52,7 +66,7 @@
                 <label for="active">Показывать на сайте</label>
                 <input type="hidden" name="active" value="0">
                 <input type="checkbox" name="active" id="active" value="1"
-                <?php echo $results['article']->active ? 'checked' : '' ?>>
+                <?php echo (!$article ||$article->active) ? 'checked' : '' ?>>
               </li>
             </ul>
 

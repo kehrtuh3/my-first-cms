@@ -32,6 +32,7 @@ try {
     // Подключаем Классы моделей (классы, отвечающие за работу с сущностями базы данных)
     require(CmsConfig::$class_path . "/Article.php");
     require(CmsConfig::$class_path . "/Category.php");
+    require(CmsConfig::$class_path . "/Subcategory.php");
     require(CmsConfig::$class_path . "/User.php");
 
 } catch (Exception $ex) {

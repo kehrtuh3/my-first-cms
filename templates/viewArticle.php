@@ -12,6 +12,12 @@
             <?php echo htmlspecialchars($results['category']->name) ?>
         </a>
     <?php } ?>
+       <?php if ( !empty( $results['subcategory'] ) ) { ?>
+        /
+        <a href="./?action=archive&amp;subcategoryId=<?php echo $results['subcategory']->id?>">
+            <?php echo htmlspecialchars($results['subcategory']->name) ?>
+        </a>
+    <?php } ?>
         
     </p>
 

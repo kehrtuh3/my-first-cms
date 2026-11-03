@@ -33,10 +33,12 @@ function archive()
     $results = [];
 
     $categoryId = (isset($_GET['categoryId']) && $_GET['categoryId']) ? (int)$_GET['categoryId'] : null;
+    $subcategoryId = (isset($_GET['subcategoryId']) && $_GET['subcategoryId']) ? (int)$_GET['subcategoryId'] : null;
 
+    $results['subcategory'] = $subcategoryId ? Subcategory::getById($subcategoryId) : null;
     $results['category'] = Category::getById($categoryId);
 
-    $data = Article::getActive(100000, $results['category'] ? $results['category']->id : null); //Article::getList(100000, $results['category'] ? $results['category']->id : null);
+    $data = Article::getActive(100000, $results['category'] ? $results['category']->id : null, $results['subcategory'] ? $results['subcategory']->id : null); //Article::getList(100000, $results['category'] ? $results['category']->id : null);
 
     $results['articles'] = $data['results'];
     $results['totalRows'] = $data['totalRows'];
@@ -48,7 +50,17 @@ function archive()
         $results['categories'][$category->id] = $category;
     }
 
-    $results['pageHeading'] = $results['category'] ? $results['category']->name : "Article Archive";
+    $data = Subcategory::getList();
+    $results['subcategories'] = array();
+    foreach ($data['results'] as $subcategory) {
+        $results['subcategories'][$subcategory->id] = $subcategory;
+    }
+
+    if ($results['subcategory'] && $results['category']) {
+        $results['pageHeading'] = $results['category']->name . " / " . $results['subcategory']->name;
+    } else {
+        $results['pageHeading'] = $results['category'] ? $results['category']->name : "Article Archive";
+    }
     $results['pageTitle'] = $results['pageHeading'] . " | Widget News";
 
     require(CmsConfig::$template_path . "/archive.php");
@@ -75,6 +87,7 @@ function viewArticle()
     }
 
     $results['category'] = Category::getById($results['article']->categoryId);
+    $results['subcategory'] = $results['article']->subcategoryId? Subcategory::getById($results['article']->subcategoryId): null; //!!новое
     $results['pageTitle'] = $results['article']->title . " | Простая CMS";
 
     require(CmsConfig::$template_path . "/viewArticle.php");

@@ -50,6 +50,18 @@ switch ($action) {
     case 'deleteUser':
         deleteUser();
         break;
+    case 'listSubcategories':
+        listSubcategories();
+        break;
+    case 'newSubcategory':
+        newSubcategory();
+        break;
+    case 'editSubcategory':
+        editSubcategory();
+        break;
+    case 'deleteSubcategory':
+        deleteSubcategory();
+        break;
     default:
         listArticles();
 }
@@ -60,24 +72,18 @@ switch ($action) {
 function authenticate($username, $password)
 {
     $wrongCredentials = "Неправильный логин или пароль, попробуйте ещё раз.";
-
-    // Логин "admin": как раньше, по данным из config.php (БД не трогаем)
     if ($username === CmsConfig::$admin_username) {
         if (hash_equals((string) CmsConfig::$admin_password, $password)) {
             return array(CmsConfig::$admin_username, null);
         }
         return array(null, $wrongCredentials);
     }
-
-    // Любой другой логин: проверяем по таблице users
     $user = User::getByLogin($username);
     if (!$user || !$user->checkPassword($password)) {
         return array(null, $wrongCredentials);
     }
-
-    // Логин и пароль верны, но пользователь неактивен: не авторизуем, выводим уведомление
     if (!$user->active) {
-        return array(null, "Ваша учётная запись неактивна, вход запрещён. Обратитесь к администратору.");
+        return array(null, "Учётная запись неактивна.");
     }
 
     return array($user->login, null);
@@ -99,7 +105,7 @@ function login()
             $_SESSION['username'] = $sessionUsername;
             header("Location: admin.php");
         } else {
-            $results['errorMessage'] = $errorMessage;      // loginForm.php уже умеет это выводить
+            $results['errorMessage'] = $errorMessage;    
             require(CmsConfig::$template_path . "/admin/loginForm.php");
         }
     } else {
@@ -114,6 +120,39 @@ function logout()
     header("Location: admin.php");
 }
 
+/**
+ * Проверка данных статьи. Ошибки собираются в массив: новые правила добавляются по одному.
+ */
+function validateArticle(Article $article)
+{
+    $errors = array();
+
+    if ($article->subcategoryId) {
+        $subcategory = Subcategory::getById($article->subcategoryId);
+
+        if (!$subcategory) {
+            $errors[] = "Ошибка: Выбранная подкатегория не существует!";
+        } elseif ((int) $subcategory->categoryId !== (int) $article->categoryId) {
+            $errors[] = "Ошибка: Выбранная категория не соответствует подкатегории!";
+        }
+    }
+    return $errors;
+}
+
+/** Вывод формы статьи: готовит списки категорий и подкатегорий для селектов */
+function showArticleForm($results)
+{
+    $data = Category::getList();
+    $results['categories'] = $data['results'];
+
+    // подкатегории, сгруппированные по id категории, для <optgroup>
+    $results['subcategoriesByCategory'] = array();
+    $data = Subcategory::getList();
+    foreach ($data['results'] as $subcategory) {
+        $results['subcategoriesByCategory'][$subcategory->categoryId][] = $subcategory;
+    }
+    require(CmsConfig::$template_path . "/admin/editArticle.php");
+}
 
 function newArticle()
 {
@@ -134,6 +173,13 @@ function newArticle()
         //            print_r($article);
         //            echo "<pre>";
         //            А здесь данные массива $article уже неполные(есть только Число от даты, категория и полный текст статьи)
+        $errors = validateArticle($article);
+        if ($errors) {
+            $results['article'] = $article;                         // форма откроется с введёнными данными
+            $results['errorMessage'] = implode("<br>", $errors);
+            showArticleForm($results);
+            return;
+        }
         $article->insert();
         header("Location: admin.php?status=changesSaved");
     } elseif (isset($_POST['cancel'])) {
@@ -144,9 +190,7 @@ function newArticle()
 
         // Пользователь еще не получил форму редактирования: выводим форму
         $results['article'] = null;
-        $data = Category::getList();
-        $results['categories'] = $data['results'];
-        require(CmsConfig::$template_path . "/admin/editArticle.php");
+        showArticleForm($results);
     }
 }
 
@@ -171,6 +215,13 @@ function editArticle()
         }
 
         $article->storeFormValues($_POST);
+        $errors = validateArticle($article);
+        if ($errors) {
+            $results['article'] = $article;
+            $results['errorMessage'] = implode("<br>", $errors);
+            showArticleForm($results);
+            return;
+        }
         $article->update();
         header("Location: admin.php?status=changesSaved");
     } elseif (isset($_POST['cancel'])) {
@@ -181,9 +232,7 @@ function editArticle()
 
         // Пользвоатель еще не получил форму редактирования: выводим форму
         $results['article'] = Article::getById((int)$_GET['articleId']);
-        $data = Category::getList();
-        $results['categories'] = $data['results'];
-        require(CmsConfig::$template_path . "/admin/editArticle.php");
+        showArticleForm($results);
     }
 }
 
@@ -250,6 +299,9 @@ function listCategories()
             $results['errorMessage'] = "Error: Category contains articles. "
                 . "Delete the articles, or assign them to another category, "
                 . "before deleting this category.";
+        }
+        if ($_GET['error'] == "categoryContainsSubcategories") {
+            $results['errorMessage'] = "Ошибка: в категории есть подкатегории. Сначала удалите их или перенесите в другую категорию.";
         }
     }
 
@@ -331,6 +383,12 @@ function deleteCategory()
     }
 
     $articles = Article::getList(1000000, $category->id);
+
+    $subcategories = Subcategory::getList(1, $category->id);
+    if ($subcategories['totalRows'] > 0) {
+        header("Location: admin.php?action=listCategories&error=categoryContainsSubcategories");
+        return;
+    }
 
     if ($articles['totalRows'] > 0) {
         header("Location: admin.php?action=listCategories&error=categoryContainsArticles");
@@ -451,4 +509,126 @@ function deleteUser()
     }
     $user->delete();
     header("Location: admin.php?action=listUsers&status=userDeleted");
+}
+
+function listSubcategories()
+{
+    $results = array();
+    $data = Subcategory::getList(1000000, null, "categoryId ASC, name ASC");
+    $results['subcategories'] = $data['results'];
+    $results['totalRows'] = $data['totalRows'];
+    $results['pageTitle'] = "Article Subcategories";
+
+    // id => категория: чтобы в таблице показать название категории
+    $data = Category::getList();
+    $results['categories'] = array();
+    foreach ($data['results'] as $category) { $results['categories'][$category->id] = $category; }
+
+    if (isset($_GET['error'])) {
+        if ($_GET['error'] == "subcategoryNotFound")
+            $results['errorMessage'] = "Ошибка: подкатегория не найдена.";
+        if ($_GET['error'] == "subcategoryContainsArticles")
+            $results['errorMessage'] = "Ошибка: в подкатегории есть статьи. Сначала удалите их или перенесите в другую подкатегорию.";
+    }
+    if (isset($_GET['status'])) {
+        if ($_GET['status'] == "changesSaved")       $results['statusMessage'] = "Your changes have been saved.";
+        if ($_GET['status'] == "subcategoryDeleted") $results['statusMessage'] = "Subcategory deleted.";
+    }
+    require(CmsConfig::$template_path . "/admin/listSubcategories.php");
+}
+
+function validateSubcategory(Subcategory $subcategory)
+{
+    $errors = array();
+    if (trim((string) $subcategory->name) === "") {
+        $errors[] = "Ошибка: название подкатегории не может быть пустым!";
+    }
+    if (!$subcategory->categoryId || !Category::getById($subcategory->categoryId)) {
+        $errors[] = "Ошибка: нужно выбрать существующую категорию!";
+    }
+    return $errors;
+}
+
+function showSubcategoryForm($results)
+{
+    $data = Category::getList();
+    $results['categories'] = $data['results'];       // для <select> категорий
+    require(CmsConfig::$template_path . "/admin/editSubcategory.php");
+}
+
+function newSubcategory()
+{
+    $results = array();
+    $results['pageTitle'] = "New Article Subcategory";
+    $results['formAction'] = "newSubcategory";
+
+    if (isset($_POST['saveChanges'])) {
+        $subcategory = new Subcategory;
+        $subcategory->storeFormValues($_POST);
+
+        $errors = validateSubcategory($subcategory);
+        if ($errors) {
+            $results['subcategory'] = $subcategory;
+            $results['errorMessage'] = implode("<br>", $errors);
+            showSubcategoryForm($results);
+            return;
+        }
+        $subcategory->insert();
+        header("Location: admin.php?action=listSubcategories&status=changesSaved");
+    } elseif (isset($_POST['cancel'])) {
+        header("Location: admin.php?action=listSubcategories");
+    } else {
+        $results['subcategory'] = new Subcategory;
+        showSubcategoryForm($results);
+    }
+}
+
+function editSubcategory()
+{
+    $results = array();
+    $results['pageTitle'] = "Edit Article Subcategory";
+    $results['formAction'] = "editSubcategory";
+
+    if (isset($_POST['saveChanges'])) {
+        if (!$subcategory = Subcategory::getById((int)$_POST['subcategoryId'])) {
+            header("Location: admin.php?action=listSubcategories&error=subcategoryNotFound");
+            return;
+        }
+        $subcategory->storeFormValues($_POST);
+
+        $errors = validateSubcategory($subcategory);
+        if ($errors) {
+            $results['subcategory'] = $subcategory;
+            $results['errorMessage'] = implode("<br>", $errors);
+            showSubcategoryForm($results);
+            return;
+        }
+        $subcategory->update();
+        header("Location: admin.php?action=listSubcategories&status=changesSaved");
+    } elseif (isset($_POST['cancel'])) {
+        header("Location: admin.php?action=listSubcategories");
+    } else {
+        $results['subcategory'] = Subcategory::getById((int)$_GET['subcategoryId']);
+        if (!$results['subcategory']) {
+            header("Location: admin.php?action=listSubcategories&error=subcategoryNotFound");
+            return;
+        }
+        showSubcategoryForm($results);
+    }
+}
+
+function deleteSubcategory()
+{
+    if (!$subcategory = Subcategory::getById((int)$_GET['subcategoryId'])) {
+        header("Location: admin.php?action=listSubcategories&error=subcategoryNotFound");
+        return;
+    }
+    // есть ли статьи в подкатегории (последний аргумент: фильтр по подкатегории)
+    $articles = Article::getList(1, null, "publicationDate DESC", false, $subcategory->id);
+    if ($articles['totalRows'] > 0) {
+        header("Location: admin.php?action=listSubcategories&error=subcategoryContainsArticles");
+        return;
+    }
+    $subcategory->delete();
+    header("Location: admin.php?action=listSubcategories&status=subcategoryDeleted");
 }
