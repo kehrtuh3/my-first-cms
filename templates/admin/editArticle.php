@@ -29,8 +29,7 @@
 
               <li>
                 <label for="content">Article Content</label>
-                <textarea name="content" id="content" placeholder="The HTML content of the article" required maxlength="100000" style="height: 30em;">
-            <?php echo htmlspecialchars( $article ? $article->content : '' )?>
+                <textarea name="content" id="content" placeholder="The HTML content of the article" required maxlength="100000" style="height: 30em;"><?php echo htmlspecialchars( $article ? $article->content : '' )?>
               </textarea>
               </li>
 

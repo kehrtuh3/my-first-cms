@@ -38,6 +38,18 @@ switch ($action) {
     case 'deleteCategory':
         deleteCategory();
         break;
+    case 'listUsers':
+        listUsers();
+        break;
+    case 'newUser':
+        newUser();
+        break;
+    case 'editUser':
+        editUser();
+        break;
+    case 'deleteUser':
+        deleteUser();
+        break;
     default:
         listArticles();
 }
@@ -45,30 +57,52 @@ switch ($action) {
 /**
  * Авторизация пользователя (админа) -- установка значения в сессию
  */
+function authenticate($username, $password)
+{
+    $wrongCredentials = "Неправильный логин или пароль, попробуйте ещё раз.";
+
+    // Логин "admin": как раньше, по данным из config.php (БД не трогаем)
+    if ($username === CmsConfig::$admin_username) {
+        if (hash_equals((string) CmsConfig::$admin_password, $password)) {
+            return array(CmsConfig::$admin_username, null);
+        }
+        return array(null, $wrongCredentials);
+    }
+
+    // Любой другой логин: проверяем по таблице users
+    $user = User::getByLogin($username);
+    if (!$user || !$user->checkPassword($password)) {
+        return array(null, $wrongCredentials);
+    }
+
+    // Логин и пароль верны, но пользователь неактивен: не авторизуем, выводим уведомление
+    if (!$user->active) {
+        return array(null, "Ваша учётная запись неактивна, вход запрещён. Обратитесь к администратору.");
+    }
+
+    return array($user->login, null);
+}
+
 function login()
 {
     $results = array();
     $results['pageTitle'] = "Admin Login | Widget News";
 
     if (isset($_POST['login'])) {
+        $username = isset($_POST['username']) ? trim($_POST['username']) : "";
+        $password = isset($_POST['password']) ? (string) $_POST['password'] : "";
 
-        // Пользователь получает форму входа: попытка авторизировать пользователя
+        list($sessionUsername, $errorMessage) = authenticate($username, $password);
 
-        if ($_POST['username'] == CmsConfig::$admin_username
-                && $_POST['password'] == CmsConfig::$admin_password) {
-
-            // Вход прошел успешно: создаем сессию и перенаправляем на страницу администратора
-            $_SESSION['username'] = CmsConfig::$admin_username;
+        if ($sessionUsername !== null) {
+            session_regenerate_id(true);
+            $_SESSION['username'] = $sessionUsername;
             header("Location: admin.php");
         } else {
-
-            // Ошибка входа: выводим сообщение об ошибке для пользователя
-            $results['errorMessage'] = "Неправильный пароль, попробуйте ещё раз.";
+            $results['errorMessage'] = $errorMessage;      // loginForm.php уже умеет это выводить
             require(CmsConfig::$template_path . "/admin/loginForm.php");
         }
     } else {
-
-        // Пользователь еще не получил форму: выводим форму
         require(CmsConfig::$template_path . "/admin/loginForm.php");
     }
 }
@@ -305,4 +339,116 @@ function deleteCategory()
 
     $category->delete();
     header("Location: admin.php?action=listCategories&status=categoryDeleted");
+}
+function listUsers()
+{
+    $results = array();
+    $data = User::getList();
+    $results['users'] = $data['results'];
+    $results['totalRows'] = $data['totalRows'];
+    $results['pageTitle'] = "Users";
+
+    if (isset($_GET['error']) && $_GET['error'] == "userNotFound") {
+        $results['errorMessage'] = "Пользователь не найден.";
+    }
+    if ($_GET['error'] == "cannotDeleteSelf") {
+            $results['errorMessage'] = "Нельзя удалить пользователя, под которым вы сейчас вошли.";
+    }
+    if (isset($_GET['status'])) {
+        if ($_GET['status'] == "changesSaved") $results['statusMessage'] = "Your changes have been saved.";
+        if ($_GET['status'] == "userDeleted")  $results['statusMessage'] = "User deleted.";
+    }
+    require(CmsConfig::$template_path . "/admin/listUsers.php");
+}
+
+function validateUser(User $user, $passwordRequired)
+{
+    $errors = array();
+    if ($user->login === null || $user->login === "") {
+        $errors[] = "Логин не может быть пустым!";
+    } elseif (mb_strtolower($user->login) === mb_strtolower(CmsConfig::$admin_username)) {
+        $errors[] = "Этот логин принадлежит администратору";  
+    } else {
+        $existing = User::getByLogin($user->login);
+        if ($existing && (int) $existing->id !== (int) $user->id) {
+            $errors[] = "Пользователь с таким логином уже существует";
+        }
+    }
+    if ($passwordRequired && !$user->password) {
+        $errors[] = "Для нового пользователя нужно задать пароль";
+    }
+    return $errors;
+}
+
+function newUser()
+{
+    $results = array();
+    $results['pageTitle'] = "New User";
+    $results['formAction'] = "newUser";
+    if (isset($_POST['saveChanges'])) {
+        $user = new User;
+        $user->storeFormValues($_POST);
+
+        $errors = validateUser($user, true);
+        if ($errors) {                                   
+            $results['user'] = $user;
+            $results['errorMessage'] = implode("<br>", $errors);
+            require(CmsConfig::$template_path . "/admin/editUser.php");
+            return;
+        }
+        $user->insert();
+        header("Location: admin.php?action=listUsers&status=changesSaved");
+    } elseif (isset($_POST['cancel'])) {
+        header("Location: admin.php?action=listUsers");
+    } else {
+        $results['user'] = new User;
+        require(CmsConfig::$template_path . "/admin/editUser.php");
+    }
+}
+
+function editUser()
+{
+    $results = array();
+    $results['pageTitle'] = "Edit User";
+    $results['formAction'] = "editUser";
+
+    if (isset($_POST['saveChanges'])) {
+        if (!$user = User::getById((int)$_POST['userId'])) {
+            header("Location: admin.php?action=listUsers&error=userNotFound");
+            return;
+        }
+        $user->storeFormValues($_POST);                  
+        $errors = validateUser($user, false);
+        if ($errors) {
+            $results['user'] = $user;
+            $results['errorMessage'] = implode("<br>", $errors);
+            require(CmsConfig::$template_path . "/admin/editUser.php");
+            return;
+        }
+        $user->update();
+        header("Location: admin.php?action=listUsers&status=changesSaved");
+    } elseif (isset($_POST['cancel'])) {
+        header("Location: admin.php?action=listUsers");
+    } else {
+        $results['user'] = User::getById((int)$_GET['userId']);
+        if (!$results['user']) {
+            header("Location: admin.php?action=listUsers&error=userNotFound");
+            return;
+        }
+        require(CmsConfig::$template_path . "/admin/editUser.php");
+    }
+}
+
+function deleteUser()
+{
+    if (!$user = User::getById((int)$_GET['userId'])) {
+        header("Location: admin.php?action=listUsers&error=userNotFound");
+        return;
+    }
+    if (isset($_SESSION['username']) && $user->login === $_SESSION['username']) {
+        header("Location: admin.php?action=listUsers&error=cannotDeleteSelf");
+        return;
+    }
+    $user->delete();
+    header("Location: admin.php?action=listUsers&status=userDeleted");
 }
