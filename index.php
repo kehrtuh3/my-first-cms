@@ -36,8 +36,8 @@ function archive()
     $subcategoryId = (isset($_GET['subcategoryId']) && $_GET['subcategoryId']) ? (int)$_GET['subcategoryId'] : null;
 
     $results['subcategory'] = $subcategoryId ? Subcategory::getById($subcategoryId) : null;
-    $results['category'] = Category::getById($categoryId);
-
+    $results['category'] = Category::getById($results['subcategory'] ? $results['subcategory']->categoryId : $categoryId);
+    
     $data = Article::getActive(100000, $results['category'] ? $results['category']->id : null, $results['subcategory'] ? $results['subcategory']->id : null); //Article::getList(100000, $results['category'] ? $results['category']->id : null);
 
     $results['articles'] = $data['results'];
@@ -108,7 +108,11 @@ function homepage()
     foreach ($data['results'] as $category) {
         $results['categories'][$category->id] = $category;
     }
-
+    $data = Subcategory::getList();
+    $results['subcategories'] = array();
+    foreach ($data['results'] as $subcategory) {
+        $results['subcategories'][$subcategory->id] = $subcategory;
+    }
     $results['pageTitle'] = "Простая CMS на PHP";
 
 

@@ -26,8 +26,24 @@
                         <a href=".?action=archive&amp;categoryId=<?php echo $article->categoryId?>">
                             <?php echo htmlspecialchars( $results['categories'][$article->categoryId]->name ) ?>
                         </a>
+                         <?php if ( !$results['subcategory'] && $article->subcategoryId && isset( $results['subcategories'][$article->subcategoryId] ) ) { ?>
+                        /
+                        <a href=".?action=archive&amp;subcategoryId=<?php echo $article->subcategoryId?>">
+                            <?php echo htmlspecialchars( $results['subcategories'][$article->subcategoryId]->name ) ?>
+                        </a>
+                    <?php } ?>     
                     </span>
-                    <?php } ?>          
+                    <?php } ?>
+                    <?php if ( $results['category'] && $article->categoryId ) { ?>
+                    <span class="category">
+                        <?php if ( !$results['subcategory'] && $article->subcategoryId && isset( $results['subcategories'][$article->subcategoryId] ) ) { ?>
+                        in 
+                        <a href=".?action=archive&amp;subcategoryId=<?php echo $article->subcategoryId?>">
+                            <?php echo htmlspecialchars( $results['subcategories'][$article->subcategoryId]->name ) ?>
+                        </a>
+                    <?php } ?>     
+                    </span>
+                    <?php } ?>        
                 </h2>
               <p class="summary"><?php echo htmlspecialchars( $article->summary )?></p>
             </li>
